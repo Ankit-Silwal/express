@@ -69,10 +69,14 @@ app.post('/api/users',(req,res)=>{
   users.push(newUser);
   return res.status(201).send(newUser);
 })
-app.get('/api/products',(req,res)=>{
-  res.json([
-    {id:123,name:"chicken breast",price:12.99}
-  ]);
+app.delete('/api/users/:id',(req,res)=>{
+  const {params:{id}}=req;
+  const parsedId=Number.parseInt(id,10);
+  if(Number.isNaN(parsedId)) return res.sendStatus(400);
+  const findUserIndex=users.findIndex((user)=>user.id===parsedId);
+  if(findUserIndex===-1) return res.sendStatus(404);
+  users.splice(findUserIndex,1);
+  return res.sendStatus(200);
 })
 
 app.listen(PORT,()=>{
