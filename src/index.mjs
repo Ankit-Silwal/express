@@ -1,4 +1,4 @@
-import express, { response } from 'express';
+import express from 'express';
 const PORT=process.env.PORT || 8000;
 const app=express();
 const users=[
@@ -25,7 +25,7 @@ app.get('/api/users', (req, res) => {
 
   // when both filter and value provided -> filter safely
   if (filter && value) {
-    const filtered = users.filter((user)=>user[filter].includes(value));
+    const filtered = users.filter((u) => String(u[filter] ?? '').includes(String(value)));
     return res.json(filtered);
   }
 
@@ -33,7 +33,7 @@ app.get('/api/users', (req, res) => {
   return res.status(400).json({ msg: 'Both filter and value are required' });
 });
 app.get('/api/users/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(id)) {
     return res.status(400).json({ msg: 'Invalid ID' });
   }
@@ -45,17 +45,24 @@ app.get('/api/users/:id', (req, res) => {
 
   return res.status(200).json(user);
 });
-app.put("/api/users/:id",(req,res)=>{
-  const {body,params:{id}}=req;
-  const parsedId=parseInt(id);
-  if(isNaN(parsedId)) return res.sendStatus(400);
-  const findUserIndex=users.findIndex(
-    (user)=>user.id===parsedId
-  )
-  if(findUserIndex===-1) return response.sendStatus(404);
-  users[findUserIndex]={id:parsedId,...body};
-  return res.sendStatus(200);
-})
+app.put('/api/users/:id', (req, res) => {
+  const { body, params: { id } } = req;
+  const parsedId = Number.parseInt(id, 10);
+  if (Number.isNaN(parsedId)) return res.sendStatus(400);
+  const findUserIndex = users.findIndex((user) => user.id === parsedId);
+  if (findUserIndex === -1) return res.sendStatus(404);
+  users[findUserIndex] = { id: parsedId, ...body };
+  return res.status(200).json(users[findUserIndex]);
+});
+app.patch('/api/users/:id', (req, res) => {
+  const { body, params: { id } } = req;
+  const parsedId = Number.parseInt(id, 10);
+  if (Number.isNaN(parsedId)) return res.sendStatus(400);
+  const findUserIndex = users.findIndex((user) => user.id === parsedId);
+  if (findUserIndex === -1) return res.sendStatus(404);
+  users[findUserIndex] = { ...users[findUserIndex], ...body };
+  return res.status(200).json(users[findUserIndex]);
+});
 app.post('/api/users',(req,res)=>{
   const {body}=req;
   const newUser={id:users[users.length-1].id+1,...body};
