@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { response } from 'express';
 const PORT=process.env.PORT || 8000;
 const app=express();
 const users=[
@@ -10,6 +10,7 @@ const users=[
   {id:6,username:"prabin",displayName:"Prabin"},
   {id:7,username:"visam",displayName:"Visam"},
   ]
+app.use(express.json());
 app.get('/',(req,res)=>{
   res.status(201).json({msg:"The server has begun yeah bitchhh"})
 })
@@ -44,11 +45,29 @@ app.get('/api/users/:id', (req, res) => {
 
   return res.status(200).json(user);
 });
+app.put("/api/users/:id",(req,res)=>{
+  const {body,params:{id}}=req;
+  const parsedId=parseInt(id);
+  if(isNaN(parsedId)) return res.sendStatus(400);
+  const findUserIndex=users.findIndex(
+    (user)=>user.id===parsedId
+  )
+  if(findUserIndex===-1) return response.sendStatus(404);
+  users[findUserIndex]={id:parsedId,...body};
+  return res.sendStatus(200);
+})
+app.post('/api/users',(req,res)=>{
+  const {body}=req;
+  const newUser={id:users[users.length-1].id+1,...body};
+  users.push(newUser);
+  return res.status(201).send(newUser);
+})
 app.get('/api/products',(req,res)=>{
   res.json([
     {id:123,name:"chicken breast",price:12.99}
   ]);
 })
+
 app.listen(PORT,()=>{
   console.log(`The server has begun at PORT number:${PORT}`);
 })
