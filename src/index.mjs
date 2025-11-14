@@ -1,6 +1,19 @@
 import express from 'express';
 const PORT=process.env.PORT || 8000;
 const app=express();
+const loggingMiddleware=(req,res,next)=>{
+  console.log(`${req.method}-${req.url}`);
+  next();
+}
+const resolveIndexByUserId=(req,res,next)=>{
+  const { body, params: { id } } = req;
+  const parsedId = Number.parseInt(id, 10);
+  if (Number.isNaN(parsedId)) return res.sendStatus(400);
+  const findUserIndex = users.findIndex((user) => user.id === parsedId);
+  if (findUserIndex === -1) return res.sendStatus(404);
+  req.findUserIndex=findUserIndex;
+  next();
+}
 const users=[
     {id:1,username:"ankit",displayName:"Ankit"},
     {id:2,username:"nandalal",displayName:"Nanadala"},
@@ -15,7 +28,7 @@ app.get('/',(req,res)=>{
   res.status(201).json({msg:"The server has begun yeah bitchhh"})
 })
 
-app.get('/api/users', (req, res) => {
+app.get('/api/users',loggingMiddleware, (req, res) => {
   const { filter, value } = req.query;
 
   // when no filter/value provided -> return all users
@@ -45,30 +58,24 @@ app.get('/api/users/:id', (req, res) => {
 
   return res.status(200).json(user);
 });
-app.put('/api/users/:id', (req, res) => {
-  const { body, params: { id } } = req;
-  const parsedId = Number.parseInt(id, 10);
-  if (Number.isNaN(parsedId)) return res.sendStatus(400);
-  const findUserIndex = users.findIndex((user) => user.id === parsedId);
-  if (findUserIndex === -1) return res.sendStatus(404);
-  users[findUserIndex] = { id: parsedId, ...body };
+app.put('/api/users/:id', resolveIndexByUserId, (req, res) => {
+  const { body, findUserIndex } = req;
+  users[findUserIndex] = { id: users[findUserIndex].id, ...body };
   return res.status(200).json(users[findUserIndex]);
 });
-app.patch('/api/users/:id', (req, res) => {
-  const { body, params: { id } } = req;
-  const parsedId = Number.parseInt(id, 10);
-  if (Number.isNaN(parsedId)) return res.sendStatus(400);
-  const findUserIndex = users.findIndex((user) => user.id === parsedId);
-  if (findUserIndex === -1) return res.sendStatus(404);
+app.patch('/api/users/:id', resolveIndexByUserId, (req, res) => {
+  const { body, findUserIndex } = req;
   users[findUserIndex] = { ...users[findUserIndex], ...body };
   return res.status(200).json(users[findUserIndex]);
 });
-app.post('/api/users',(req,res)=>{
-  const {body}=req;
-  const newUser={id:users[users.length-1].id+1,...body};
+app.post('/api/users', (req, res) => {
+  const { body } = req;
+  const last = users.at(-1);
+  const nextId = last ? last.id + 1 : 1;
+  const newUser = { id: nextId, ...body };
   users.push(newUser);
   return res.status(201).send(newUser);
-})
+});
 app.delete('/api/users/:id',(req,res)=>{
   const {params:{id}}=req;
   const parsedId=Number.parseInt(id,10);
