@@ -1,4 +1,5 @@
 import express from 'express';
+import {query,validationResult,body } from "express-validator";
 const PORT=process.env.PORT || 8000;
 const app=express();
 const loggingMiddleware=(req,res,next)=>{
@@ -6,7 +7,7 @@ const loggingMiddleware=(req,res,next)=>{
   next();
 }
 const resolveIndexByUserId=(req,res,next)=>{
-  const { body, params: { id } } = req;
+  const {  params: { id } } = req;
   const parsedId = Number.parseInt(id, 10);
   if (Number.isNaN(parsedId)) return res.sendStatus(400);
   const findUserIndex = users.findIndex((user) => user.id === parsedId);
@@ -28,9 +29,10 @@ app.get('/',(req,res)=>{
   res.status(201).json({msg:"The server has begun yeah bitchhh"})
 })
 
-app.get('/api/users',loggingMiddleware, (req, res) => {
+app.get('/api/users',query('filter').isString().notEmpty().withMessage("Must not be empty").isLength({min:3,max:10}).withMessage('Must be at least 3 to 10 characters'), (req, res) => {
   const { filter, value } = req.query;
-
+  const result=validationResult(req);
+  console.log(result)
   // when no filter/value provided -> return all users
   if (!filter && !value) {
     return res.json(users);
@@ -68,7 +70,15 @@ app.patch('/api/users/:id', resolveIndexByUserId, (req, res) => {
   users[findUserIndex] = { ...users[findUserIndex], ...body };
   return res.status(200).json(users[findUserIndex]);
 });
-app.post('/api/users', (req, res) => {
+app.post('/api/users',
+   [body('username')
+  .notEmpty().withMessage("Username cann't be empty")
+  .isLength({min:5,max:32}).withMessage("User name must be at least 5 characters to 32")
+  .isString().withMessage("User name must be a String"),
+  body("displayName").notEmpty().withMessage("Display name cannt be empty")],
+  (req, res) => {
+  const result=validationResult(req);
+  console.log(result);
   const { body } = req;
   const last = users.at(-1);
   const nextId = last ? last.id + 1 : 1;
@@ -76,12 +86,8 @@ app.post('/api/users', (req, res) => {
   users.push(newUser);
   return res.status(201).send(newUser);
 });
-app.delete('/api/users/:id',(req,res)=>{
-  const {params:{id}}=req;
-  const parsedId=Number.parseInt(id,10);
-  if(Number.isNaN(parsedId)) return res.sendStatus(400);
-  const findUserIndex=users.findIndex((user)=>user.id===parsedId);
-  if(findUserIndex===-1) return res.sendStatus(404);
+app.delete('/api/users/:id',resolveIndexByUserId,(req,res)=>{
+  const {findUserIndex}=req;
   users.splice(findUserIndex,1);
   return res.sendStatus(200);
 })
