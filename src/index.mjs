@@ -1,6 +1,6 @@
 import express from "express";
-import { query, validationResult, body, matchedData, checkSchema } from "express-validator";
-import { createUserValidationSchema } from './utils/validationSchemas.mjs'
+import { query, validationResult, body, matchedData, checkSchema, check } from "express-validator";
+import { createUserValidationSchema,createQueryValidationSchema } from './utils/validationSchemas.mjs'
 const PORT = process.env.PORT || 8000;
 const app = express();
 const loggingMiddleware = (req, res, next) => {
@@ -34,22 +34,19 @@ app.get("/", (req, res) => {
 
 app.get(
   "/api/users",
-  query("filter")
-    .isString()
-    .notEmpty()
-    .withMessage("Must not be empty")
-    .isLength({ min: 3, max: 10 })
-    .withMessage("Must be at least 3 to 10 characters"),
+  checkSchema(createQueryValidationSchema),
   (req, res) => {
-    const { filter, value } = req.query;
     const result = validationResult(req);
-    console.log(result);
-    // when no filter/value provided -> return all users
+    if (!result.isEmpty()) {
+      return res.status(400).json({ errors: result.array() });
+    }
+
+    const { filter, value } = req.query;
+
     if (!filter && !value) {
       return res.json(users);
     }
 
-    // when both filter and value provided -> filter safely
     if (filter && value) {
       const filtered = users.filter((u) =>
         String(u[filter] ?? "").includes(String(value))
@@ -57,10 +54,10 @@ app.get(
       return res.json(filtered);
     }
 
-    // if only one of filter/value provided -> bad request
     return res.status(400).json({ msg: "Both filter and value are required" });
   }
 );
+
 app.get("/api/users/:id", (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(id)) {

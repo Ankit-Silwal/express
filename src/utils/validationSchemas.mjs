@@ -19,3 +19,26 @@ export const createUserValidationSchema={
     notEmpty:true,
   }
 }
+export const createQueryValidationSchema = {
+  filter: {
+    optional: true,          
+    isString: {
+      errorMessage: "Filter must be a string",
+    },
+    isLength: {
+      options: { min: 3, max: 30 },
+      errorMessage: "Filter length must be 3–30 characters",
+    },
+  },
+
+  value: {
+    optional: true,           
+    isString: {
+      errorMessage: "Value must be a string",
+    },
+    isLength: {
+      options: { min: 1 },
+      errorMessage: "Value must not be empty",
+    }
+  },
+};
