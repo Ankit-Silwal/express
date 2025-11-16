@@ -77,6 +77,13 @@ app.post('/api/cart',(req,res)=>{
   }
   return res.status(201).send(item);
 })
+app.post('api/auth/logouot',(req,res)=>{
+  if(!req.user) return res.sendStatus(401);
+  req.logout((err)=>{
+    res.sendStatus(400);
+  })
+  res.sendStatus(200)
+})
 app.get('/api/cart',(req,res)=>{
   if(!req.session.user) return res.sendStatus(401);
     return res.send(req.session.cart??[]);
