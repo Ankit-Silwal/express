@@ -3,6 +3,8 @@ import routes from "./routes/index.mjs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import { users } from "./utils/constants.mjs";
+import passport from "passport";
+import './strategies/local-strategy.mjs'
 const PORT = process.env.PORT || 8000;
 const app = express();
 app.use(express.json());
@@ -15,7 +17,13 @@ app.use(session({
     maxAge:60000*60,
   }
 }));
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.use(routes);
+app.post('/api/auth',passport.authenticate('local'),(req,res)=>{
+  res.send(200);
+})
 app.listen(PORT, () => {
   console.log(`The server has begun at PORT number:${PORT}`);
 });
@@ -40,6 +48,12 @@ app.post('/api/auth',(req,res)=>{
   }
   req.session.user = findUser;
   return res.status(200).send(findUser);
+})
+app.get('/api/auth/status',(req,res)=>{
+  console.log(`Inside auth status endpoint`)
+  console.log(req.user);
+  console.log(req.session);
+  return req.user?res.send(req.user):res.sendStatus(401);
 })
 app.get('/api/auth/status',(req,res)=>{
   req.sessionStore.get(req.sessionID,(err,session)=>{
