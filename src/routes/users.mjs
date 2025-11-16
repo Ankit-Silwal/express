@@ -9,6 +9,14 @@ import {
 import { createQueryValidationSchema,createUserValidationSchema } from '../utils/validationSchemas.mjs'
 import { resolveIndexByUserId } from '../utils/middlewares.mjs';
 router.get("/api/users",checkSchema(createQueryValidationSchema), (req, res) => {
+  console.log(req.session);
+  console.log(req.session.id);
+  req.sessionStore.get(req.session.id,(err,sessionData)=>{
+    if(err){
+      throw err;
+    }
+    console.log(sessionData);
+  })
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(400).json({ errors: result.array() });
