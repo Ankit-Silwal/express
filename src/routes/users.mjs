@@ -1,55 +1,69 @@
-import {Router} from 'express';
-const router=Router();
-import { users } from "../utils/constants.mjs"
+import { Router } from "express";
+const router = Router();
+import { users } from "../utils/constants.mjs";
 import {
   validationResult,
   checkSchema,
   matchedData,
 } from "express-validator";
-import { createQueryValidationSchema,createUserValidationSchema } from '../utils/validationSchemas.mjs'
-import { resolveIndexByUserId } from '../utils/middlewares.mjs';
-router.get("/api/users",checkSchema(createQueryValidationSchema), (req, res) => {
-  console.log(req.session);
-  console.log(req.session.id);
-  req.sessionStore.get(req.session.id,(err,sessionData)=>{
-    if(err){
-      throw err;
+import {
+  createQueryValidationSchema,
+  createUserValidationSchema,
+} from "../utils/validationSchemas.mjs";
+import { User } from "../mongoose/schemas/user.mjs";
+import { resolveIndexByUserId } from "../utils/middlewares.mjs";
+router.get(
+  "/api/users",
+  checkSchema(createQueryValidationSchema),
+  (req, res) => {
+    console.log(req.session);
+    console.log(req.session.id);
+    req.sessionStore.get(req.session.id, (err, sessionData) => {
+      if (err) {
+        throw err;
+      }
+      console.log(sessionData);
+    });
+    const result = validationResult(req);
+    if (!result.isEmpty()) {
+      return res.status(400).json({ errors: result.array() });
     }
-    console.log(sessionData);
-  })
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    return res.status(400).json({ errors: result.array() });
-  }
 
-  const { filter, value } = req.query;
+    const { filter, value } = req.query;
 
-  if (!filter && !value) {
-    return res.json(users);
-  }
+    if (!filter && !value) {
+      return res.json(users);
+    }
 
-  if (filter && value) {
-    const filtered = users.filter((u) =>
-      String(u[filter] ?? "").includes(String(value))
-    );
-    return res.json(filtered);
-  }
+    if (filter && value) {
+      const filtered = users.filter((u) =>
+        String(u[filter] ?? "").includes(String(value))
+      );
+      return res.json(filtered);
+    }
 
-  return res.status(400).json({ msg: "Both filter and value are required" });
-});
-router.post("/api/users", checkSchema(createUserValidationSchema), (req, res) => {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    return res.status(400).send({ error: result.array() });
+    return res.status(400).json({ msg: "Both filter and value are required" });
   }
-  const data = matchedData(req);
-  console.log(data);
-  const last = users.at(-1);
-  const nextId = last ? last.id + 1 : 1;
-  const newUser = { id: nextId, ...data };
-  users.push(newUser);
-  return res.status(201).send(newUser);
-})
+);
+router.post(
+  "/api/users",
+  checkSchema(createUserValidationSchema),
+  async (req, res) => {
+    const result = validationResult(req);
+    if(!result.isEmpty()){
+      return res.send(result.array())
+    }
+    const data=matchedData(req);
+    const newUser = new User(data);
+    try {
+      const savedUser = await newUser.save();
+      return res.status(201).send(savedUser);
+    } catch (err) {
+      console.log(err);
+      return res.sendStatus(400);
+    }
+  }
+);
 router.put("/api/users/:id", resolveIndexByUserId, (req, res) => {
   const { body, findUserIndex } = req;
   users[findUserIndex] = { id: users[findUserIndex].id, ...body };
