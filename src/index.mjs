@@ -2,9 +2,10 @@ import express, { response } from "express";
 import routes from "./routes/index.mjs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-import { users } from "./utils/constants.mjs";
-import passport from "passport";
-import './strategies/local-strategy.mjs'
+// users array not used when DB enabled; keep constants file for other modules
+import mongoose from 'mongoose';
+import { User } from './mongoose/schemas/user.mjs';
+// keep auth simple but back it with MongoDB `User` model when available
 const PORT = process.env.PORT || 8000;
 const app = express();
 app.use(express.json());
@@ -17,16 +18,37 @@ app.use(session({
     maxAge:60000*60,
   }
 }));
-app.use(passport.initialize());
-app.use(passport.session());
+// connect to MongoDB (use MONGODB_URI env var if set)
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/expressdb';
 
+// mount routes (they don't depend on DB)
 app.use(routes);
-app.post('/api/auth',passport.authenticate('local'),(req,res)=>{
-  res.send(200);
-})
-app.listen(PORT, () => {
-  console.log(`The server has begun at PORT number:${PORT}`);
-});
+
+async function start() {
+  try {
+    // connect to DB (if Mongo not running this will throw)
+    await mongoose.connect(MONGO_URI);
+    console.log('Connected to MongoDB');
+
+    // ensure at least one test user exists for local testing
+    const seedUser = { username: 'ankit', password: 'ankit123', displayName: 'Ankit' };
+    const existing = await User.findOne({ username: seedUser.username }).lean();
+    if (!existing) {
+      await User.create(seedUser);
+      console.log('Seeded test user:', seedUser.username);
+    }
+
+    app.listen(PORT, () => {
+      console.log(`The server has begun at PORT number:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start app (DB connection error):', err.message || err);
+    console.error('If you do not want a DB, remove mongoose/User usage and run without MongoDB.');
+    process.exit(1);
+  }
+}
+
+start();
 
 app.get("/", (req, res) => {
   console.log(req.session);
@@ -36,36 +58,28 @@ app.get("/", (req, res) => {
   res.status(201).json({ msg: "The server has begun yeah bitchhh" });
 });
 
-app.post('/api/auth',(req,res)=>{
-  const {body:{
-    username,password
-  }}=req;
-  const findUser=users.find(
-    user=> user.username===username
-  );
-  if(!findUser || findUser.password!==password){
-    return res.status(401).send({msg:"Bad Credentials"})
+app.post('/api/auth', async (req, res) => {
+  const { body: { username, password } } = req;
+  try {
+    // prefer DB-backed user when available
+    const dbUser = await User.findOne({ username }).lean();
+    if (!dbUser) return res.status(401).send({ msg: 'Bad Credentials' });
+    if (dbUser.password !== password) return res.status(401).send({ msg: 'Bad Credentials' });
+    // store minimal user info in session
+    req.session.user = { id: dbUser._id.toString(), username: dbUser.username, displayName: dbUser.displayName };
+    return res.status(200).send(req.session.user);
+  } catch (err) {
+    console.error('Auth error:', err);
+    return res.sendStatus(500);
   }
-  req.session.user = findUser;
-  return res.status(200).send(findUser);
-})
-app.get('/api/auth/status',(req,res)=>{
-  console.log(`Inside auth status endpoint`)
-  console.log(req.user);
-  console.log(req.session);
-  return req.user?res.send(req.user):res.sendStatus(401);
-})
-app.get('/api/auth/status',(req,res)=>{
-  req.sessionStore.get(req.sessionID,(err,session)=>{
-    if(err){
-      throw err;  
-    }
-    console.log(session);
-  })
-  return req.session.user
-  ?res.status(200).send(req.session.user)
-  :res.status(401).send({msg:"Not authenticated"})
-})
+});
+
+app.get('/api/auth/status', (req, res) => {
+  if (req.session?.user) {
+    return res.status(200).send(req.session.user);
+  }
+  return res.status(401).send({ msg: 'Not authenticated' });
+});
 app.post('/api/cart',(req,res)=>{
   if(!req.session.user) return res.sendStatus(401);
   const {body:item}=req;
@@ -77,14 +91,15 @@ app.post('/api/cart',(req,res)=>{
   }
   return res.status(201).send(item);
 })
-app.post('api/auth/logouot',(req,res)=>{
-  if(!req.user) return res.sendStatus(401);
-  req.logout((err)=>{
-    res.sendStatus(400);
-  })
-  res.sendStatus(200)
-})
-app.get('/api/cart',(req,res)=>{
-  if(!req.session.user) return res.sendStatus(401);
-    return res.send(req.session.cart??[]);
-})
+app.post('/api/auth/logout', (req, res) => {
+  if (!req.session?.user) return res.sendStatus(401);
+  req.session.destroy((err) => {
+    if (err) return res.sendStatus(500);
+    res.clearCookie('connect.sid');
+    return res.sendStatus(200);
+  });
+});
+app.get('/api/cart', (req, res) => {
+  if (!req.session?.user) return res.sendStatus(401);
+  return res.send(req.session.cart ?? []);
+});
