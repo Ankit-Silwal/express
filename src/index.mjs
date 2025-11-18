@@ -2,14 +2,16 @@ import express, { response } from "express";
 import routes from "./routes/index.mjs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-// users array not used when DB enabled; keep constants file for other modules
 import mongoose from 'mongoose';
+import MongoStore from "connect-mongo";
 import { User } from './mongoose/schemas/user.mjs';
 import bcrypt from 'bcrypt';
 import { hashPassword } from './utils/helpers.mjs';
-// keep auth simple but back it with MongoDB `User` model when available
 const PORT = process.env.PORT || 8000;
 const app = express();
+mongoose.connect('mongodb://localhost/express')
+.then(()=>console.log("connected to the database"))
+.catch((err)=>console.log(`Error:${err}`))
 app.use(express.json());
 app.use(cookieParser('helloworld'));
 app.use(session({
@@ -18,40 +20,13 @@ app.use(session({
   resave:false,
   cookie:{
     maxAge:60000*60,
-  }
+  },
+  store:MongoStore.create({
+    client:mongoose.connection.getClient(),
+  })
 }));
-// connect to MongoDB (use MONGODB_URI env var if set)
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/expressdb';
-
-// mount routes (they don't depend on DB)
 app.use(routes);
-
-async function start() {
-  try {
-    // connect to DB (if Mongo not running this will throw)
-    await mongoose.connect(MONGO_URI);
-    console.log('Connected to MongoDB');
-
-    // ensure at least one test user exists for local testing
-    const seedUser = { username: 'ankit', password: 'ankit123', displayName: 'Ankit' };
-    const existing = await User.findOne({ username: seedUser.username }).lean();
-    if (!existing) {
-      const hashed = hashPassword(seedUser.password);
-      await User.create({ username: seedUser.username, password: hashed, displayName: seedUser.displayName });
-      console.log('Seeded test user:', seedUser.username);
-    }
-
-    app.listen(PORT, () => {
-      console.log(`The server has begun at PORT number:${PORT}`);
-    });
-  } catch (err) {
-    console.error('Failed to start app (DB connection error):', err.message || err);
-    console.error('If you do not want a DB, remove mongoose/User usage and run without MongoDB.');
-    process.exit(1);
-  }
-}
-
-start();
 
 app.get("/", (req, res) => {
   console.log(req.session);
@@ -105,4 +80,8 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/cart', (req, res) => {
   if (!req.session?.user) return res.sendStatus(401);
   return res.send(req.session.cart ?? []);
+});
+
+app.listen(8000, () => {
+  console.log('Server listening on port 8000');
 });
