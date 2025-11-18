@@ -5,6 +5,8 @@ import session from "express-session";
 // users array not used when DB enabled; keep constants file for other modules
 import mongoose from 'mongoose';
 import { User } from './mongoose/schemas/user.mjs';
+import bcrypt from 'bcrypt';
+import { hashPassword } from './utils/helpers.mjs';
 // keep auth simple but back it with MongoDB `User` model when available
 const PORT = process.env.PORT || 8000;
 const app = express();
@@ -34,7 +36,8 @@ async function start() {
     const seedUser = { username: 'ankit', password: 'ankit123', displayName: 'Ankit' };
     const existing = await User.findOne({ username: seedUser.username }).lean();
     if (!existing) {
-      await User.create(seedUser);
+      const hashed = hashPassword(seedUser.password);
+      await User.create({ username: seedUser.username, password: hashed, displayName: seedUser.displayName });
       console.log('Seeded test user:', seedUser.username);
     }
 
@@ -60,11 +63,12 @@ app.get("/", (req, res) => {
 
 app.post('/api/auth', async (req, res) => {
   const { body: { username, password } } = req;
+  if (!username || !password) return res.status(400).send({ msg: 'username and password required' });
   try {
-
     const dbUser = await User.findOne({ username }).lean();
     if (!dbUser) return res.status(401).send({ msg: 'Bad Credentials' });
-    if (dbUser.password !== password) return res.status(401).send({ msg: 'Bad Credentials' });
+    const match = bcrypt.compareSync(password, dbUser.password);
+    if (!match) return res.status(401).send({ msg: 'Bad Credentials' });
     req.session.user = { id: dbUser._id.toString(), username: dbUser.username, displayName: dbUser.displayName };
     return res.status(200).send(req.session.user);
   } catch (err) {

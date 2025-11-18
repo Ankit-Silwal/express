@@ -57,7 +57,7 @@ router.post(
     const data=matchedData(req);
     console.log(data);
     try {
-      data.password = await hashPassword(data.password);
+      data.password = hashPassword(data.password);
     } catch (err) {
       console.log('Password hashing failed:', err);
       return res.status(400).json({ msg: err.message ?? 'Invalid password' });
