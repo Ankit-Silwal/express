@@ -18,6 +18,16 @@ export const createUserValidationSchema={
   displayName:{
     notEmpty:true,
   }
+  ,
+  password: {
+    isLength: {
+      options: { min: 8, max: 128 },
+      errorMessage: "Password must be between 8 and 128 characters",
+    },
+    notEmpty: {
+      errorMessage: "Password cannot be empty",
+    },
+  }
 }
 export const createQueryValidationSchema = {
   filter: {

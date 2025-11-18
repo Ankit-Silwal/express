@@ -12,6 +12,7 @@ import {
 } from "../utils/validationSchemas.mjs";
 import { User } from "../mongoose/schemas/user.mjs";
 import { resolveIndexByUserId } from "../utils/middlewares.mjs";
+import { hashPassword } from "../utils/helpers.mjs";
 router.get(
   "/api/users",
   checkSchema(createQueryValidationSchema),
@@ -54,6 +55,14 @@ router.post(
       return res.send(result.array())
     }
     const data=matchedData(req);
+    console.log(data);
+    try {
+      data.password = await hashPassword(data.password);
+    } catch (err) {
+      console.log('Password hashing failed:', err);
+      return res.status(400).json({ msg: err.message ?? 'Invalid password' });
+    }
+    console.log(data);
     const newUser = new User(data);
     try {
       const savedUser = await newUser.save();

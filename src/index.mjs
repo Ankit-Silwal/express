@@ -61,11 +61,10 @@ app.get("/", (req, res) => {
 app.post('/api/auth', async (req, res) => {
   const { body: { username, password } } = req;
   try {
-    // prefer DB-backed user when available
+
     const dbUser = await User.findOne({ username }).lean();
     if (!dbUser) return res.status(401).send({ msg: 'Bad Credentials' });
     if (dbUser.password !== password) return res.status(401).send({ msg: 'Bad Credentials' });
-    // store minimal user info in session
     req.session.user = { id: dbUser._id.toString(), username: dbUser.username, displayName: dbUser.displayName };
     return res.status(200).send(req.session.user);
   } catch (err) {
