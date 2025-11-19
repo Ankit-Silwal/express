@@ -4,19 +4,16 @@ import dotenv from "dotenv";
 import { DiscordUser } from "../mongoose/schemas/discord-user.mjs";
 dotenv.config();
 passport.serializeUser((user,done)=>{
-  console.log(`Inside  Serialize User`)
+  console.log(`Inside the seriealze User `);
   console.log(user);
   done(null,user.id);
 });
 passport.deserializeUser(async (id,done)=>{
-  
-  try{
-    const findUser=users.findById(id);
-    if(!findUser) throw new Error("User want found");
-    done(null,findUser);
+  try{  
+    const findUser=await DiscordUser.findById(id)
+    return findUser ? done(null, findUser) : done(null, null)
   }catch(err){
-    console.log(`Inside Deserialilzer`)
-    done(err,null);
+    done(err, null)
   }
 })
 export default passport.use(
@@ -26,23 +23,32 @@ export default passport.use(
     callbackURL:process.env.Redirect_URL,
     scope:['identify'],
   },
-  async (accessToken,refreshToken,profile,done)=>{
-    let findUser;
-    try{
-      findUser=await DiscordUser.findOne({discordId:profile.id});
-    }catch(err){
-      return done(err,null);
-    }
-    try{
-      if(!findUser){
-        const newUser=new DiscordUser({username:profile.username,discordId:profile.id})
-        const newSavedUser=await newUser.save();
-        return done(null,newSavedUser);
+  async (accessToken, refreshToken, profile, done) => {
+    try {
+      let findUser = await DiscordUser.findOne({ discordId: profile.id });
+
+      if (!findUser) {
+        const newUser = new DiscordUser({ username: profile.username, discordId: profile.id });
+        const newSavedUser = await newUser.save();
+        return done(null, newSavedUser);
       }
-      return done(null,findUser);
-    }catch(err){
+
+      // Update stored fields when Discord profile changes
+      let needsSave = false;
+      if (profile.username && findUser.username !== profile.username) {
+        findUser.username = profile.username;
+        needsSave = true;
+      }
+
+      if (needsSave) {
+        const updated = await findUser.save();
+        return done(null, updated);
+      }
+
+      return done(null, findUser);
+    } catch (err) {
       console.log(err);
-      return done(err,null)
+      return done(err, null);
     }
   })
 )
