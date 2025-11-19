@@ -2,9 +2,12 @@ import express, { response } from "express";
 import routes from "./routes/index.mjs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import './strategies/discord-strategy.mjs'
+import passport from "passport";
 import mongoose from 'mongoose';
 import MongoStore from "connect-mongo";
 import { User } from './mongoose/schemas/user.mjs';
+import { DiscordUser } from './mongoose/schemas/discord-user.mjs';
 import bcrypt from 'bcrypt';
 import { hashPassword } from './utils/helpers.mjs';
 const PORT = process.env.PORT || 8000;
@@ -25,6 +28,29 @@ app.use(session({
     client:mongoose.connection.getClient(),
   })
 }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser((user, done) => {
+  try{
+    const id = user?._id?.toString?.() ?? user?.id ?? user;
+    done(null, id);
+  }catch(err){
+    done(err,null);
+  }
+});
+passport.deserializeUser(async (id, done) => {
+  try{
+    let found = null;
+    if (!id) return done(null, null);
+    found = await DiscordUser.findById(id).lean();
+    if(!found) found = await User.findById(id).lean();
+    done(null, found);
+  }catch(err){
+    done(err,null);
+  }
+});
+
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/expressdb';
 app.use(routes);
 
@@ -69,6 +95,17 @@ app.post('/api/cart',(req,res)=>{
   }
   return res.status(201).send(item);
 })
+app.get('/api/auth/discord', passport.authenticate("discord"));
+app.get('/api/auth/discord/redirect',
+  passport.authenticate('discord', { failureRedirect: '/api/auth/discord/failure' }),
+  (req, res) => {
+    // Successful authentication, `req.user` should be set by passport
+    return res.status(200).json({ msg: 'You are authorized!', user: req.user });
+  }
+);
+app.get('/api/auth/discord/failure', (req, res) => {
+  return res.status(401).json({ msg: 'Discord authentication failed' });
+});
 app.post('/api/auth/logout', (req, res) => {
   if (!req.session?.user) return res.sendStatus(401);
   req.session.destroy((err) => {
@@ -85,3 +122,4 @@ app.get('/api/cart', (req, res) => {
 app.listen(8000, () => {
   console.log('Server listening on port 8000');
 });
+
